@@ -1,0 +1,1196 @@
+---
+title: "**Sprawozdanie 1**"
+author: "**Marta Hałas i Igor Misterowicz**"
+date: "**2025-11-08**"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    number_sections: true
+    toc: true
+    toc_depth: 3
+  word_document:  
+    toc: true
+    number_sections: true
+  html_document:
+    toc: true
+    df_print: paged
+    number_sections: true
+lang: pl
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(fig.pos = "H", out.extra = "", fig.align = "center")
+```
+
+```{r wyniki,echo=FALSE, warning=FALSE,eval=TRUE,message=FALSE,}
+library(knitr)
+library(kableExtra)
+library(binom)
+set.seed(123)
+library(ggplot2)
+library(cowplot)
+library(latex2exp)
+library(dplyr)
+library(tidyr)
+```
+
+\newpage
+# Lista 1
+
+## Zadanie 1
+
+Poniższe implementacje funkcji związanych z rozkładem wykładniczym-Weilbula  $\mathcal{E}\,\mathcal{W}\left(\alpha,\,\beta, \,\gamma\right)$ przyjmują jako argumenty parametry $\alpha,\,\beta, \,\gamma$, a zwracają funkcję jednej zmiennej $x$.
+
+### Dystrybuanta
+
+$$F(x)=\left[1-e^{-(x/\beta)^{\alpha}}\right]^{1/\gamma}$$
+
+
+```{r }
+pwexp <- function(alpha, beta, gamma){
+  f <- function(x){
+    return ((1 - exp(-(x/beta)^alpha))^gamma)
+  }
+  return(f)
+}
+
+
+```
+
+### Gęstość 
+
+$$
+f(x)=\left(\frac{\gamma\alpha}{\beta}\right)\left(\frac{x}{\beta}\right)^{\alpha-1}\left[1-e^{-(x/\beta)^{\alpha}}\right]^{\gamma-1}e^{-(x/\beta)^{\alpha}}
+$$
+
+
+
+
+```{r }
+dwexp <- function(alpha, beta, gamma){
+  f <- function(x){
+    return ((gamma*alpha/beta)*((x/beta)^(alpha - 1))*
+              ((1 - exp(-(x/beta)^(alpha)))^(gamma-1))*exp(-(x/beta)^alpha))
+  }
+  return(f)
+}
+
+
+```
+
+### Funkcja Kwantylowa 
+
+$$
+Q(x) = \beta \left[\ln\left(\frac{1}{1 - x^{1/\gamma}}\right)\right]^{1/\alpha}
+$$
+
+
+```{r }
+qwexp <- function(alpha, beta, gamma){
+  f <- function(x){
+    return (beta*(-log(1-x^(1/gamma)))^(1/alpha))
+  }
+  return(f)
+}
+
+
+```
+
+
+### Funkcja Hazardu 
+
+$$
+h(x)=\frac{f(x)}{1-F(x)}
+$$
+
+
+```{r }
+
+hwexp <- function(alpha, beta, gamma){
+  den <- dwexp(alpha, beta, gamma)
+  dist <-  pwexp(alpha, beta, gamma)
+  f <- function(x){
+    return (den(x)/(1 - dist(x)))
+  }
+  return(f)
+}
+
+
+```
+
+
+```{r, echo = FALSE}
+alpha = 0.5
+beta = 0.5
+gamma = 0.5
+
+df = data.frame("F(0.5)" = pwexp(alpha, beta, gamma)(0.5),
+                "Q(0.5)" = qwexp(alpha, beta, gamma)(0.5),
+                "f(0.5)" = dwexp(alpha, beta, gamma)(0.5),
+                "h(0.5)" = hwexp(alpha, beta, gamma)(0.5),
+                check.names = FALSE)
+
+df = round(df,3)
+
+kable(df, caption = "Przykładowe wartości funkcji \\label{tab:wyniki}")
+
+
+```
+
+W Tabeli \ref{tab:wyniki} zostały umieszczone wartości zaimplementowanych funkcji dla $x=\alpha=\beta=\gamma=0.5$.
+
+
+
+## Zadanie 2
+
+Na Wykresie \ref{fig:hazard} znajdują się funkcje hazardu o różnych, sprecyzowanych na legendzie, parametrach. Użycie aż trzech parametrów zapewnia nam uniwersalność, dzięki temu możemy opisywać zbiory danych o różnych charakterystykach czasów życia.
+
+```{r , fig.cap = "Wykresy funkcji hazardu \\label{fig:hazard}", echo = FALSE,fig.width=5, fig.height=3}
+x_ax <- seq(0.01, 5, length.out = 100)
+
+params <- c(
+  TeX("$\\alpha=0.5,\\;\\beta=0.5,\\;\\gamma=0.5$"),
+  TeX("$\\alpha=3,\\;\\beta=2,\\;\\gamma=0.5$"),
+  TeX("$\\alpha=2,\\;\\beta=2,\\;\\gamma=2$")
+)
+
+points <- data.frame("a" = sapply(x_ax,FUN = hwexp(0.5,0.5,0.5)),
+                     "b" = sapply(x_ax,FUN = hwexp(3,2,0.5)),
+                     "c" = sapply(x_ax,FUN = hwexp(2,2,2)))
+
+points_long <- points %>%
+  mutate(x = x_ax) %>%
+  pivot_longer(cols = a:c, names_to = "dist", values_to = "value")
+
+params <- c(
+  a = TeX("$\\alpha=0.5, \\beta=0.5, \\gamma=0.5$"),
+  b = TeX("$\\alpha=3, \\beta=2, \\gamma=0.5$"),
+  c = TeX("$\\alpha=2, \\beta=2, \\gamma=2$")
+)
+
+ggplot(points_long, aes(x = x, y = value, color = dist)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c(a="deeppink", b="blue", c="black"),
+                     labels = params) +
+  labs(color = "Parametry rozkładu") +
+  ylab("h(t)") + 
+  xlab("t") + 
+  ggtitle("Funkcje hazardu rozkładu wykładniczego-weilbula") +
+  ylim(0, 5)
+
+```
+
+## Zadanie 3
+
+Poniższa funkcja zwraca wektor $n$ realizacji zmienej losowej o rozkładzie $\mathcal{E}\,\mathcal{W}\left(\alpha,\,\beta, \,\gamma\right)$. Jej parametry to $n,\,\alpha,\,\beta,\,\gamma$.
+
+```{r }
+
+rwexp <- function(n, alpha, beta, gamma){
+  unifx <- runif(n,0,1)
+  values <- sapply(unifx, FUN = qwexp(alpha, beta, gamma))
+  return(values)
+}
+
+```
+
+Przykład: Wywołanie funkcji **rwexp** dla $n=5,\,\alpha=1,\,\beta=2,\,\gamma=3$
+
+```{r, eval=FALSE }
+rwexp(5,1,2,3)
+```
+
+`r rwexp(5,1,2,3)`
+
+## Zadanie 4
+
+Na Wykresie \ref{fig:hist}, dla danych o rozkłdzie wykładniczym-Weilbula, znajdziemy porównanie histogramów z teoretycznymi gęstościami. Wybrane parametry oraz liczby obserwacji zostały opisane w legendzie. Jeśli dane interpretować jako czasy życia (w latach), to dla $\alpha=0.95,\;\beta=0.95,\;\gamma=0.95$ z upływem czasu obserwujemy malejącą liczbę zgonów, natomiast dla  $\alpha=2,\;\beta=2,\;\gamma=2$ największa śmiertelność jest w okolicach końca 2 roku.
+
+```{r , fig.width=6, fig.height=5, fig.cap="\\label{fig:hist} Dystrybuanty i histogramy Rozkładu Wykładniczego-Weilbula", echo = FALSE, fig.align='left'}
+
+
+Y = data.frame(y1 = rwexp(50,0.95,0.95,0.95),
+               y2 = rwexp(100,0.95,0.95,0.95),
+               y3 = rwexp(50,2,2,2),
+               y4 = rwexp(100,2,2,2))
+
+x_ax = seq(0.02, 8, length.out = 100)
+
+
+p1 <- ggplot(data = NULL, aes(x = Y$y1)) +
+  geom_histogram(aes(y = ..density..), bins = 40, fill = "blue",
+                 color = "black") +
+  geom_line(size = 1, aes(x = x_ax, y = sapply(x_ax, FUN = dwexp(0.95,0.95,0.95))))+
+  xlab("x") +
+  ylab("y") + 
+  ggtitle(TeX("$\\alpha=0.95,\\;\\beta=0.95,\\;\\gamma=0.95,\\;n=50$")) +
+  xlim(c(0,5))  + 
+  theme(plot.title = element_text(size = 10))
+  
+
+p2 <- ggplot(data = NULL, aes(x = Y$y2)) +
+  geom_histogram(aes(y = ..density..), bins = 40, fill = "blue",
+                 color = "black") +
+  geom_line(size = 1, aes(x = x_ax, y = sapply(x_ax,FUN = dwexp(0.95,0.95,0.95)))) +
+  xlab("x") +
+  ylab("y") + 
+  ggtitle(TeX("$\\alpha=0.95,\\;\\beta=0.95,\\;\\gamma=0.95,\\;n=100$")) + 
+  xlim(c(0,5)) + 
+  theme(plot.title = element_text(size = 10))
+
+
+p3 <- ggplot(data = NULL, aes(x = Y$y3)) +
+  geom_histogram(aes(y = ..density..), bins = 40, fill = "blue",
+                 color = "black") +
+  geom_line(size = 1, aes(x = x_ax, y = sapply(x_ax,FUN = dwexp(2,2,2)))) +
+  xlab("x") +
+  ylab("y") + 
+  ggtitle(TeX("$\\alpha=2,\\;\\beta=2,\\;\\gamma=2,\\;n=50$")) + 
+  theme(plot.title = element_text(size = 10))
+
+p4 <- ggplot(data = NULL, aes(x = Y$y4)) +
+  geom_histogram(aes(y = ..density..), bins = 40, fill = "blue",
+                 color = "black") +
+  geom_line(size = 1, aes(x = x_ax, y = sapply(x_ax,FUN = dwexp(2,2,2)))) +
+  xlab("x") +
+  ylab("y") + 
+  ggtitle(TeX("$\\alpha=2,\\;\\beta=2,\\;\\gamma=2,\\;n=100$")) + 
+  theme(plot.title = element_text(size = 10))
+
+title <- ggdraw() +
+  draw_label("Dystrybuanty i histogramy rozkładu wykładniczego-Weilbula",
+             x = 0.5,
+             hjust = 0.5,
+             size = 14)
+
+
+grid <- plot_grid(p1, p2, p3, p4, labels = NULL)
+
+plot_grid(title, grid, ncol = 1, rel_heights = c(0.1, 1))
+
+
+```
+
+## Zadanie 5
+
+W Tabeli \ref{tab:des} znajdziemy statystyki opisowe dla danych z zadania 4. "True" w nazwie kolumny oznacza, że wartość została obliczona za pomocą teoretycznej funkcji kwantylowej.
+
+```{r, echo = FALSE }
+Q1 = qwexp(0.95,0.95,0.95)
+Q2 = qwexp(2,2,2)
+
+set1 <- summary(Y$y1)
+set1["Rng"] = max(Y$y1) - min(Y$y1)
+set1["Sd"] = sd(Y$y1)
+set1["True Med"] = Q1(0.5)
+set1["True 1.Qu"] = Q1(0.25)
+set1["True 3.Qu"] = Q1(0.75)
+
+set2 <- summary(Y$y2)
+set2["Rng"] = max(Y$y2) - min(Y$y2)
+set2["Sd"] = sd(Y$y2)
+set2["True Median"] = Q1(0.5)
+set2["True 1.Qu"] = Q1(0.25)
+set2["True 3.Qu"] = Q1(0.75)
+
+set3 <- summary(Y$y3)
+set3["Rng"] = max(Y$y3) - min(Y$y3)
+set3["Sd"] = sd(Y$y3)
+set3["True Median"] = Q2(0.5)
+set3["True 1.Qu"] = Q2(0.25)
+set3["True 3.Qu"] = Q2(0.75)
+
+set4 <- summary(Y$y4)
+set4["Rng"] = max(Y$y4) - min(Y$y4)
+set4["Sd"] = sd(Y$y4)
+set4["True Median"] = Q2(0.5)
+set4["True 1.Qu"] = Q2(0.25)
+set4["True 3.Qu"] = Q2(0.75)
+
+des_stats <- rbind(set1,set2,set3,set4)
+des_stats <- as.data.frame(des_stats)
+rownames(des_stats) <- c(
+  "$n = 50,\\ \\mathcal{E}\\,\\mathcal{W}(0.5,0.5,0.5)$",
+  "$n = 100,\\ \\mathcal{E}\\,\\mathcal{W(0.5,0.5,0.5)}$",
+  "$n = 50,\\ \\mathcal{E}\\,\\mathcal{W}(2,2,2)$",
+  "$n = 100,\\ \\mathcal{E}\\,\\mathcal{W}(2,2,2)$"
+)
+colnames(des_stats)[3] = "Med"
+des_stats[2:11] = round(des_stats[2:11],2)
+des_stats[1] = round(des_stats[1],5)
+
+kable(des_stats, caption = "\\label{tab:des} Statystyki opisowe dla danych wykładniczych", escape = FALSE, booktabs = TRUE)
+```
+
+Zaskakującą obserwacją dla $\alpha=0.95,\;\beta=0.95,\;\gamma=0.95$ jest to, że dla $n=50$ mamy większy rozstęp niż dla $n=100$. Zgodnie z intuicją, dla $n=100$ kwantyle z próby są bliższe kwantylom teoretycznym niż dla $n=50$.
+
+
+# Lista 2
+
+## Zadanie 1 
+
+Funkcja dystrybuanty rozkładu wykładniczego $\mathcal{G}\mathcal{E}(\lambda, \alpha)$
+
+
+$$
+F(x; \alpha, \lambda) = \left( 1 - e^{-\lambda x} \right)^\alpha, \quad x > 0
+$$
+
+Funkcja dystrybuanty odwrotnej rozkładu wykładniczego $\mathcal{G}\mathcal{E}(\lambda, \alpha)$
+
+$$
+F^{-1}(u; \alpha, \lambda) = -\frac{1}{\lambda} \ln\!\left( 1 - u^{1/\alpha} \right), \quad 0 < u < 1
+$$
+
+
+```{r}
+kwantylowa<- function(u,a,l) {
+  (-1/l)*log(1-u^(1/a))
+}
+```
+
+
+
+### a) Cenzurowanie I-go typu,
+
+```{r}
+typ1<-function(n,a,l,t0){
+  u<-runif(n)
+  wartosc<-kwantylowa(u,a,l)
+  wartosc[wartosc > t0] <- t0
+  indykator <- as.integer(wartosc < t0)
+  data.frame("czas obserwowania" = wartosc, indykator = indykator)
+}
+```
+
+\newpage
+
+### b) Cenzurowanie II-go typu
+
+```{r}
+typ2<- function(m,n,a,l) {
+  u<-runif(n)
+  wartosc<-sort(kwantylowa(u,a,l))
+  z<-wartosc[m]
+  for (t in seq(m+1,n,1)) {
+    wartosc[t]<-z
+  }
+  indykator <- c(rep(1, m), rep(0, n - m))
+  data.frame("czas obserwowania" = wartosc, indykator = indykator)
+}
+```
+
+
+### c) Cenzurowanie losowe (niezależne)
+
+```{r}
+losowo<-function(T1,n,a,l){
+  u<-runif(n)
+  wartosc<-kwantylowa(u,a,l)
+  cenzurowane<-runif(n,min=0,max=T1)
+  pary<-pmin(wartosc,cenzurowane)
+  indykator <- as.integer(wartosc<=cenzurowane)
+  data.frame("czas obserwowania" = pary, indykator = indykator)
+}
+```
+
+## Zadanie 2 
+
+### Dane cenzurowane I-go typu
+
+Wybrane paramatery:
+
+  * liczba obserwacji *n*=100
+  
+  * paramet $\alpha$=2
+  
+  * paramet $\lambda$=1.5
+  
+  * ustalony czas obserwacji $t_0$=0.7
+
+```{r, echo=FALSE}
+dane<-typ1(100,2,1.5,0.7)
+
+statystyki <- function(dane) {
+  liczba_obserwacji <- nrow(dane)
+  liczba_pelnych <- sum(dane$indykator == 1)
+  liczba_cenzurowanych <- sum(dane$indykator == 0)
+  mediana_czas <- median(dane$czas.obserwowania)
+  min_czas <- min(dane$czas.obserwowania)
+  kwartyl_dol<-quantile(dane$czas.obserwowania,0.25)
+  kwartyl_gorny<-quantile(dane$czas.obserwowania,0.75)
+  
+  tabela <- data.frame(
+    Statystyka = c(
+      "Liczba obserwacji",
+      "Liczba danych kompletnych",
+      "Liczba cenzurowanych",
+      "Mediana czasu obserwacji ",
+      "Minimalny czas obserwacji ",
+      "Kwartl dolny czasu obserwacji ",
+      "Kwartl górny czasu obserwacji"
+    ),
+    Wartość = c(
+      format(liczba_obserwacji, nsmall = 0),
+      format(liczba_pelnych, nsmall = 0),
+      format(liczba_cenzurowanych, nsmall = 0),
+      format(round(mediana_czas, 2), nsmall = 2),
+      format(round(min_czas, 3), nsmall = 3),
+      format(round(kwartyl_dol, 2), nsmall = 2),
+      format(round(kwartyl_gorny, 2), nsmall = 2)
+    )
+  )
+  
+  kable(tabela, col.names = c("Statystyka", "Wartość"), caption = "Statystyki opisowe dla danych cenzurowanych typu 1 \\label{tab:dane1}")
+}
+statystyki(dane)
+```
+
+\newpage
+
+Z powyższej tabeli \ref{tab:dane1} odczytujemy, że:
+
+* Liczba wszytskich obserwacji równa jest 100.
+
+* Ponad połowa obserwacji jest danymi cenzurowanymi. 
+
+* Liczba danych kompletnych jest mniejsza o 2 obserwacje.
+
+* Mediana równa 0.7 wskazuje na to, że większość obserwacji, co najmniej połowa nie zakończyła się przed końcem eksperymentu. Jest to spotykane przy cenzurowaniu I-go typu.
+
+* Minimalny czas obserwacji wynosi $t$=0.063. Pierwsze zdarzenie nastąpiło wcześnie.
+
+* Kwartyl górny wynosi 0.70 to znaczy, że 75% obserwacji miało miejsce do czasu $t_0$=0.7.
+
+* Kwartyl dolny równy 0.45 wskazuje, że 25% obserwacji miało czas obserwacji  $\le 0.45$ i miały ono miejsce - zdarzenie zaszło.
+
+Dla wygenerowanych danych otrzymujemy zdarzenie, pojawiające się dość szybko $t$=0.063, jak i zdarzenia, które nie zdążyły się zakończyć w czasie $t$=0.7.
+
+W tablce ze statystykami nie została uwzględniona średnia oraz maksymalny czas trwania eksperymentu, ponieważ nie są one miarodajne. Funkcja wyznaczająca maksymalny czas zwróciłaby $t$=0.7, wartość graniczną obserwacji, co mogłoby być nie prawdą. W rzeczywistości zdarzenie mogło trwać dłużej tylko my już go nie obserwowaliśmy. Średnia natomiast mogłaby być zaniżona.
+
+### Dane cenzurowane II-go typu
+
+Wybrane paramatery:
+
+  * liczba zaobserwowanych zdarzeń, które         kończą eksperyment *m*=54 
+  
+  * liczba obserwacji *n*=100
+  
+  * paramet $\alpha$=2
+  
+  * paramet $\lambda$=1.5
+
+```{r,echo=FALSE}
+dane<-typ2(54,100,2,1.5)
+
+statystyki <- function(dane) {
+  liczba_obserwacji <- nrow(dane)
+  liczba_pelnych <- sum(dane$indykator == 1)
+  liczba_cenzurowanych <- sum(dane$indykator == 0)
+  mediana_czas <- median(dane$czas.obserwowania)
+  min_czas <- min(dane$czas.obserwowania)
+  max_czas <- max(dane$czas.obserwowania)
+  kwartyl_dol<-quantile(dane$czas.obserwowania,0.25)
+  kwartyl_gorny<-quantile(dane$czas.obserwowania,0.75)
+  
+  tabela <- data.frame(
+    Statystyka = c(
+      "Liczba obserwacji",
+      "Liczba danych kompletnych",
+      "Liczba cenzurowanych",
+      "Mediana czasu obserwacji",
+      "Minimalny czas obserwacji ",
+      "Maksymalny czas obserwacji ",
+      "Kwartl dolny czasu obserwacji ",
+      "Kwartl górny czasu obserwacji "
+    ),
+    Wartość = c(
+      format(liczba_obserwacji, nsmall = 0),
+      format(liczba_pelnych, nsmall = 0),
+      format(liczba_cenzurowanych, nsmall = 0),
+      format(round(mediana_czas, 2), nsmall = 2),
+      format(round(min_czas, 3), nsmall = 3),
+      format(round(max_czas, 2), nsmall = 2),
+      format(round(kwartyl_dol, 2), nsmall = 2),
+      format(round(kwartyl_gorny, 2), nsmall = 2)
+    )
+  )
+  
+  kable(tabela, col.names = c("Statystyka", "Wartość"), caption = "Statystyki opisowe dla danych cenzurowanych typu 2 \\label{tab:dane2}")
+}
+statystyki(dane)
+```
+\newpage
+
+Z tabeli \ref{tab:dane2} wnioskujemy następująco:
+
+* Liczba wszytskich obserwacji równa jest 100.
+
+* Ponad połowa obserwacji jest danymi kompletnymi zgodnie z założeniem wybranym do generowania obserwacji.
+
+* Liczba danych cenzurowanych jest mniejsza o 12. Po 54 zdrzeniach obserwacja została przerwana.
+
+* Mediana równa 0.73 wskazuje na to, że połowa obserwacji zakończyła się przed $t$=0.73. 
+
+* Minimalny czas obserwacji wynosi 0.015. Pierwsze zdarzenie nastąpiło bardzo wcześnie, prawie odrazu po rozpoczęciu obserwacji.
+
+* Maksymalny czas obserwacji wynosi 0.76. W tamtej chwili zauważone zostało 54 zdarzenie. Pozostałe dane zostały ocencurowane, tzn. mogłyby trwać dłużej, gdyby eksperyment został nieprzerwany.
+
+* Kwartyl górny wynosi 0.76 to znaczy, że 75% obserwacji miało czas obserwacji do tego czasu. Jest to intuicyjne, ponieważ po czasie 54 zdarzeniu eksperyment został przerwany.
+
+* Kwartyl dolny równy 0.44 wskazjue na to, że około 25% zdarzeń miało miejsce i czas obserwacji do $t$=0.44.
+
+Dla wygenerowanych danych otrzymujemy pierwsze zdarzenie, pojawiające się dość szybko $t$=0.015, 25% zdarzeń pojawiło się do $t$=0.44, a ostanie obserwowane zdarzenie numer 54 w chwili $t$=0.76. 
+
+W tablce ze statystykami nie została uwzględniona średnia, ponieważ nie znamy wszytskich czasów obserwacji. Po czasie wystąpienia 54 zdarzenia $t$=0.76 eksperyment został przerwany.
+
+### Dane cenzurowane losowo
+
+Wybrane paramatery:
+
+  * prawdziwy czas do zdarzenia *T*=2
+  
+  * liczba obserwacji *n*=100
+  
+  * paramet $\alpha$=2
+  
+  * paramet $\lambda$=1.5
+  
+```{r,echo=FALSE}
+dane<-losowo(2,100,2,1.5)
+statystyki <- function(dane) {
+  liczba_obserwacji <- nrow(dane)
+  liczba_pelnych <- sum(dane$indykator == 1)
+  liczba_cenzurowanych <- sum(dane$indykator == 0)
+  mediana_czas <- median(dane$czas.obserwowania)
+  min_czas <- min(dane$czas.obserwowania)
+  max_czas <- max(dane$czas.obserwowania)
+  kwartyl_dol<-quantile(dane$czas.obserwowania,0.25)
+  kwartyl_gorny<-quantile(dane$czas.obserwowania,0.75)
+
+  
+  tabela <- data.frame(
+    Statystyka = c(
+      "Liczba obserwacji",
+      "Liczba danych kompletnych",
+      "Liczba cenzurowanych",
+      "Mediana czasu obserwacji ",
+      "Minimalny czas obserwacji",
+      "Maksymalny czas obserwacji",
+      "Kwartl dolny czasu obserwacji ",
+      "Kwartl górny czasu obserwacji"
+    ),
+    Wartość = c(
+      format(liczba_obserwacji, nsmall = 0),
+      format(liczba_pelnych, nsmall = 0),
+      format(liczba_cenzurowanych, nsmall = 0),
+      format(round(mediana_czas, 2), nsmall = 2),
+      format(round(min_czas, 2), nsmall = 2),
+      format(round(max_czas, 2), nsmall = 2),
+      format(round(kwartyl_dol, 2), nsmall = 2),
+      format(round(kwartyl_gorny, 2), nsmall = 2)
+    )
+  )
+  
+  kable(tabela, col.names = c("Statystyka", "Wartość"), caption = "Statystyki opisowe dla danych cenzurowanych losowo \\label{tab:dane3}")
+}
+statystyki(dane)
+
+indykator_wartosc <- dane$indykator[dane$czas.obserwowania == min(dane$czas.obserwowania)]
+
+indykator_wartosc1 <- dane$indykator[dane$czas.obserwowania == max(dane$czas.obserwowania)]
+
+```
+
+\newpage
+
+Z tabeli \ref{tab:dane3} odczytujemy, że:
+
+* Liczba wszytskich obserwacji równa jest 100. 
+* 49 obserwacji jest danymi cenzurowanymi. 
+
+* Liczba danych kompletnych jest większa o 2 obserwacje.
+
+* Mediana równa 0.55 wskazuje na to, że większość obserwacji trwała $t\le 0.55$.
+
+* Minimalny czas obserwacji wynosi $t$=0.04. Pierwsze zdarzenie nastąpiło wcześnie lub obserwacja została szybko przerwana.W tym przypadku jest to obserwacja cenzurowana (indykator=`r indykator_wartosc`), więc zdarzenie nie zaszło.
+
+* Maksymalny czas obserwacji wynosi $t$=1.82, jeśli jest to kopletna obserwacja to zdarzenie zaszło, jeśli nie to jest to cenzurowana obserwacja i nie mamy infomacji o tym czy zdarzenie nie zaszło np. po czasie obserwacji. W tym przypadku jest to obserwacja kompletna (indykator= `r indykator_wartosc1`).
+
+* Kwartyl górny wynosi 0.88 to znaczy, że 75% obserwacji miało miejsce do czasu $t$=0.88. Nie możemy jednak stwierdzić czy zdarzenia zaszły.
+
+* Kwartyl dolny równy 0.24 wskazuje, że 25% obserwacji miało czas obserwacji  $\le 0.24$. Nie możemy jednak stwierdzić czy zdarzenia zaszły.
+
+Dla wygenerowanych danych powyższe ifnromacje odnoszą się do czasów obserwacji. Nie dają nam konkretnych informacji o tym czy zdarzenie zaszło czy nie. Gdybyśmy chcieli jednak uzyskać takie informacje trzeba by było wyznaczyc podzbiór z danymi cenzurowanymi i osobno kopletnymi i przeprowadzic analize statystyk na tych podzbiorach.
+
+W tablce ze statystykami nie została uwzględniona średnia, ponieważ nie znamy wszytskich czasów obserwacji.
+
+## Zadanie 3 
+
+Dane podane w zadaniu i inforamcje podane o badaniu wskazują na cenzurowanie I-go typu. Czas obserwacji jest równy rok czyli zapisujemy $t_0$=1.
+
+
+W tablkach ze statystykami nie została uwzględniona średnia oraz maksymalny czas trwania eksperymentu, ponieważ nie są one miarodajne. Funkcja wyznaczająca maksymalny czas zwróciłaby $t$=1, wartość graniczną obserwacji, co mogłoby być nie prawdą. W rzeczywistości zdarzenie mogło trwać dłużej tylko my już go nie obserwowaliśmy. Średnia natomiast mogłaby być zaniżona.
+
+
+```{r,echo=FALSE}
+czas_A<-c( 0.03345514, 0.08656403, 0.08799947, 0.24385821, 0.27755032,
+           0.40787247, 0.58825664, 0.64125620, 0.90679161, 0.94222208, rep(1,10))
+indykator<-c(rep(1,10),rep(0,10)) 
+grupa_A<-data.frame(czas.obserwowania=czas_A,indykator)
+
+czas_B<-c(  0.03788958, 0.12207257, 0.20319983, 0.24474299, 0.30492413,
+            0.34224462, 0.42950144, 0.44484582, 0.63805066, 0.69119721, rep(1,10))
+grupa_B<-data.frame(czas.obserwowania=czas_B,indykator=indykator)
+
+statystyki <- function(dane) {
+  liczba_obserwacji <- nrow(dane)
+  liczba_pelnych <- sum(dane$indykator == 1)
+  liczba_cenzurowanych <- sum(dane$indykator == 0)
+  mediana_czas <- median(dane$czas.obserwowania)
+  min_czas <- min(dane$czas.obserwowania)
+  kwartyl_dol<-quantile(dane$czas.obserwowania,0.25)
+  kwartyl_gorny<-quantile(dane$czas.obserwowania,0.75)
+  
+  tabela <- data.frame(
+    Statystyka = c(
+      "Liczba obserwacji",
+      "Liczba danych kompletnych",
+      "Liczba cenzurowanych",
+      "Mediana czasu obserwacji ",
+      "Minimalny czas obserwacji ",
+      "Kwartl dolny czasu obserwacji ",
+      "Kwartl górny czasu obserwacji"
+    ),
+    Wartość = c(
+      format(liczba_obserwacji, nsmall = 0),
+      format(liczba_pelnych, nsmall = 0),
+      format(liczba_cenzurowanych, nsmall = 0),
+      format(round(mediana_czas, 2), nsmall = 2),
+      format(round(min_czas, 3), nsmall = 3),
+      format(round(kwartyl_dol, 2), nsmall = 2),
+      format(round(kwartyl_gorny, 2), nsmall = 2)
+    )
+  )
+  
+  kable(tabela, col.names = c("Statystyka", "Wartość"), caption = "Statystyki opisowe dla danych cenzurowanych typu 1 - grupa A \\label{tab:dane4}")
+}
+
+statystyki(grupa_A)
+```
+
+\newpage
+
+Z powyższej tabeli \ref{tab:dane4} odczytujemy następująco:
+
+* Liczba wszytskich obserwacji równa jest 20. 
+
+* Liczba danych kompletnych równa jest liczbie danych cenzurowanych i wynosi 10.
+
+* Mediana równa 0.97 wskazuje na to, że conajmniej połowa zdarzeń (remisja choroby) zakończyła się przed końcem eksperymentu.
+
+* Minimalny czas obserwacji wynosi $t$=0.033. Pierwsza remisja nastąpiła wcześnie.
+
+* Kwartyl górny wynosi 1 to znaczy, że 75% obserwacji miało miejsce do czasu $t_0$=1.
+
+* Kwartyl dolny równy 0.38 wskazuje, że 25% obserwacji miało czas obserwacji  $\le 0.38$ i miały ono miejsce-remisja nastąpiła.
+
+Dla wygenerowanych danych otrzymujemy remisję choroby u pacjenta, pojawiającą się dość szybko $t$=0.033, jak i zdarzenia, które nie zdążyły się zakończyć w czasie $t$=1, niezaobserowano remisji do roku.
+
+
+```{r,echo=FALSE}
+statystyki <- function(dane) {
+  liczba_obserwacji <- nrow(dane)
+  liczba_pelnych <- sum(dane$indykator == 1)
+  liczba_cenzurowanych <- sum(dane$indykator == 0)
+  mediana_czas <- median(dane$czas.obserwowania)
+  min_czas <- min(dane$czas.obserwowania)
+  kwartyl_dol<-quantile(dane$czas.obserwowania,0.25)
+  kwartyl_gorny<-quantile(dane$czas.obserwowania,0.75)
+  
+  tabela <- data.frame(
+    Statystyka = c(
+      "Liczba obserwacji",
+      "Liczba danych kompletnych",
+      "Liczba cenzurowanych",
+      "Mediana czasu obserwacji ",
+      "Minimalny czas obserwacji ",
+      "Kwartl dolny czasu obserwacji ",
+      "Kwartl górny czasu obserwacji"
+    ),
+    Wartość = c(
+      format(liczba_obserwacji, nsmall = 0),
+      format(liczba_pelnych, nsmall = 0),
+      format(liczba_cenzurowanych, nsmall = 0),
+      format(round(mediana_czas, 2), nsmall = 2),
+      format(round(min_czas, 3), nsmall = 3),
+      format(round(kwartyl_dol, 2), nsmall = 2),
+      format(round(kwartyl_gorny, 2), nsmall = 2)
+    )
+  )
+  
+  kable(tabela, col.names = c("Statystyka", "Wartość"), caption = "Statystyki opisowe dla danych cenzurowanych typu 1 - grupa B \\label{tab:dane5}")
+}
+
+statystyki(grupa_B)
+```
+
+Z powyższej tabeli \ref{tab:dane5} odczytujemy następująco:
+
+* Liczba wszytskich obserwacji równa jest 20. 
+
+* Liczba danych kompletnych równa jest liczbie danych cenzurowanych i wynosi 10.
+
+* Mediana równa 0.85 wskazuje na to, że conajmniej połowa zdarzeń (remisja choroby) zakończyła się przed końcem eksperymentu.
+
+* Minimalny czas obserwacji wynosi $t$=0.038. Pierwsza remisja nastąpiła wcześnie.
+
+* Kwartyl górny wynosi 1 to znaczy, że 75% obserwacji miało miejsce do czasu $t_0$=1.
+
+* Kwartyl dolny równy 0.33 wskazuje, że 25% obserwacji miało czas obserwacji  $\le 0.33$ i miały ono miejsce-remisja nastąpiła.
+
+Dla wygenerowanych danych otrzymujemy remisję choroby u pacjenta, pojawiającą się dość szybko $t$=0.038, jak i zdarzenia, które nie zdążyły się zakończyć w czasie $t$=1, niezaobserowano remisji do roku.
+
+
+Porównując grupę pacjentów, którym podano lek A i grupę pacjentów, którym podano lek B zauważamy, że u pacjent z grupy A najszybciej zaobserwowano remisje chorby. Kwartyl dolny lepiej prezentuje się natomiast w grupie gdzie podano lek B tzn. szybciej zaobserowaliśmy remisje choroby u 5 pacjentów. Mediana jest mniejsza również w grupie B, połowa pacjentów doświadczyła remisji chorby do czasu $t$=0.85. Liczba przypadków cenzurowanych w obu grupach jest taka sama.
+
+# Lista 3
+
+## Zadanie 1 
+
+### a)  Oszacowania największej wiarogodności średniego czasu do remisji choroby
+
+```{r, echo=TRUE}
+X<-sort(grupa_A$czas.obserwowania[grupa_A$indykator == 1])
+n<-nrow(grupa_A)
+R<-sum(grupa_A$indykator == 1)
+t0<-1
+T1<-sum(X)+t0*(n-R)
+theta<-R/T1
+średnia_a<-1/theta
+```
+
+Średni czas do remisji choroby dla pacjentów leczonych lekiem A wynosi `r round(średnia_a,2)`.
+
+
+```{r, echo=TRUE}
+X<-sort(grupa_B$czas.obserwowania[grupa_B$indykator == 1])
+n<-nrow(grupa_B)
+R<-sum(grupa_B$indykator == 1)
+t0<-1
+T1<-sum(X)+t0*(n-R)
+theta<-R/T1
+średnia_b<-1/theta
+```
+
+Średni czas do remisji choroby dla pacjentów leczonych lekiem B wynosi `r round(średnia_b,2)`.
+
+### b) Realizacja przedziału ufności dla średniego czasu do remisji choroby. 
+
+```{r, echo=TRUE}
+rel_przedzial_ufności<-function(R,n,alfa,t0) {
+  przedzial<-binom.confint(R,n,conf.level=(1-alfa),methods="exact")
+  dol<-(-log(1-przedzial$lower))/t0
+  gora<-(-log(1-przedzial$upper))/t0
+  
+  return(c(1/gora,1/dol))
+}
+```
+
+Realizacja przedziału ufności dla średniego czasu do remisji choroby pacjentów z grupy A na poziomie ufności $1-\alpha$ oraz pramaterów:
+
+* $n$=`r nrow(grupa_A)`
+
+* $R$=`r sum(grupa_A$indykator == 1)`
+
+* $t_0$=1
+
+* $\alpha$=0.05 oraz $\alpha$=0.01
+
+
+```{r, echo=FALSE}
+n<-nrow(grupa_A)
+R<-sum(grupa_A$indykator == 1)
+t0<-1
+a<-rel_przedzial_ufności(R,n,0.05,t0)
+b<-rel_przedzial_ufności(R,n,0.01,t0)
+
+tabela <- data.frame(
+  alfa = c(0.05, 0.01),
+  przedzial_dolny = c(round(a[1],2),round(b[1],2)),
+  przedzial_górny = c(round(a[2],2),round(b[2],2))
+)
+
+kable(tabela,
+      col.names = c("Poziom istotności ($\\alpha$)", "Przedział dolny", "Przedział górny"),
+      caption = "Realizacja przedziału ufności, na poziomie ufności 1−$\\alpha$, dla średniego czasu remisji choroby dla pacjentów leczonych lekiem A")
+```
+
+
+Realizacja przedziału ufności dla średniego czasu do remisji choroby pacjentów z grupy B na poziomie ufności $1-\alpha$ oraz pramaterów:
+
+* $n$=`r nrow(grupa_B)`
+
+* $R$=`r sum(grupa_B$indykator == 1)`
+
+* $t_0$=1
+
+* $\alpha$=0.05 oraz $\alpha$=0.01
+
+```{r, echo=FALSE}
+n<-nrow(grupa_B)
+R<-sum(grupa_B$indykator == 1)
+t0<-1
+c<-rel_przedzial_ufności(R,n,0.05,t0)
+d<-rel_przedzial_ufności(R,n,0.01,t0)
+tabela <- data.frame(
+  alfa = c(0.05, 0.01),
+  przedzial_dolny = c(round(c[1],2),round(d[1],2)),
+  przedzial_górny = c(round(c[2],2),round(d[2],2))
+)
+
+kable(tabela,
+      col.names = c("Poziom istotności ($\\alpha$)", "Przedział dolny", "Przedział górny"),
+      caption = "Realizacja przedziału ufności, na poziomie ufności 1−$\\alpha$, dla średniego czasu remisji choroby dla pacjentów leczonych lekiem B")
+```
+
+Dla poziomu istotności $\alpha$=0.05 realizacją przedziału ufnosći za równo dla pacjentów leczonych lekiem A, jak i B jest przedział $[`r round(c[1],2)`,`r round(c[2],2)`]$. Dla $\alpha$=0.01 realizacje przedziałów w obu grupach pacjentów są również takie same: [`r round(d[1],2)`,`r round(d[2],2)`].
+
+W tym zadaniu liczyliśmy realizacje przedziału ufności dla danych cencurowanych I-go typu. Otrzymaliśmy takie same realizacje przedziałów u obu grup A i B w zależności od zadanej $\alpha$. Wynikają one z tego, że do konstrukcji przedziału tego typu używa się liczby wszytskich obserwacji, liczby danych kompletnych oraz czasu $t_0$, gdzie dla obu grup powyższe zmienne są identyczne.
+
+## Zadanie 2 
+
+Przyjmujemy, że obserwacje czasu do remisji choroby były prowadzone do momentu, w którym u dziesięciu pacjentów zostanie ona zaobserwowana.
+
+### a)
+
+```{r}
+m<-10
+X <- sort(grupa_A$czas.obserwowania[grupa_A$indykator == 1])[1:m]
+n<-nrow(grupa_A)
+T2<-sum(X)+X[m]*(n-m)
+theta<-m/T2
+średnia_a<-1/theta
+```
+
+Średni czas do remisji choroby dla pacjentów leczonych lekiem B wynosi `r round(średnia_a,2)`.
+
+```{r}
+m<-10
+X <- sort(grupa_B$czas.obserwowania[grupa_B$indykator == 1])[1:m]
+n<-nrow(grupa_B)
+T2<-sum(X)+X[m]*(n-m)
+theta<-m/T2
+średnia_b<-1/theta
+```
+
+Średni czas do remisji choroby dla pacjentów leczonych lekiem B wynosi `r round(średnia_b,2)`.
+
+### b)
+
+```{r}
+rel_przedział_ufności<-function(X,m,n,alfa) {
+  T2<-sum(X)+X[m]*(n-m)
+  dol<-(m*qgamma(alfa/2,m,rate=m))/T2
+  gora<-(m*qgamma(1-alfa/2,m,rate=m))/T2
+  
+  return(c(1/gora,1/dol))
+}
+```
+
+Realizacja przedziału ufności (przyjumując że obserwacje czasu do remisji choroby były prowadzone do momentu, w którym u dziesięciu pacjentów z grupy A zostanie ona zaobserwowana) na poziomie ufności $1-\alpha$ oraz pramaterów:
+
+* $n$=`r nrow(grupa_A)`
+
+* $X$= (`r sort((grupa_A$czas.obserwowania[grupa_A$indykator == 1]))`)
+
+* $m$=10
+
+* $\alpha$=0.05 oraz $\alpha$=0.01
+
+```{r, echo=FALSE}
+X <- sort(grupa_A$czas.obserwowania[grupa_A$indykator == 1])
+n<-nrow(grupa_A)
+m<-10
+a<-rel_przedział_ufności(X,m,n,0.05)
+b<-rel_przedział_ufności(X,m,n,0.01)
+tabela <- data.frame(
+  alfa = c(0.05,0.01),
+  przedzial_dolny = c(round(a[1],2),round(b[1],2)),
+  przedzial_górny = c(round(a[2],2),round(b[2],2))
+)
+
+kable(tabela,
+      col.names = c("Poziom istotności ($\\alpha$)", "Przedział dolny", "Przedział górny"),
+      caption = "Realizacja przedziału ufności, na poziomie ufności 1−$\\alpha$, dla obserwacji czasu do remisji choroby u dziesięciu pacjentów leczonych lekiem A")
+```
+
+Dla poziomu istotności $\alpha$=0.05 realizacją przedziału ufnosći dla pacjentów leczonych lekiem A przyjując, że 1, że obserwacje czasu do remisji choroby były prowadzone do momentu, w którym u dziesięciu pacjentów zostanie ona zaobserwowana jest przedział $[`r round(a[1],2)`,`r round(a[2],2)`]$. Dla $\alpha$=0.01 realizacją przedziału ufności jest przedział: [`r round(b[1],2)`,`r round(b[2],2)`].
+
+\newpage
+
+Realizacja przedziału ufności (przyjumując że obserwacje czasu do remisji choroby były prowadzone do momentu, w którym u dziesięciu pacjentów z gurpy B zostanie ona zaobserwowana) na poziomie ufności $1-\alpha$ oraz pramaterów:
+
+* $n$=`r nrow(grupa_B)`
+
+* $X$= (`r sort((grupa_B$czas.obserwowania[grupa_B$indykator == 1]))`)
+
+* $m$=10
+
+* $\alpha$=0.05 oraz $\alpha$=0.01
+
+```{r,echo=FALSE}
+X <- sort(grupa_B$czas.obserwowania[grupa_B$indykator == 1])
+n<-nrow(grupa_B)
+m<-10
+c<-rel_przedział_ufności(X,m,n,0.05)
+d<-rel_przedział_ufności(X,m,n,0.01)
+tabela <- data.frame(
+  alfa = c(0.05, 0.01),
+  przedzial_dolny = c(round(c[1],2),round(d[1],2)),
+  przedzial_górny = c(round(c[2],2),round(d[2],2))
+)
+
+kable(tabela,
+      col.names = c("Poziom istotności ($\\alpha$)", "Przedział dolny", "Przedział górny"),
+      caption = "Realizacja przedziału ufności, na poziomie ufności 1−$\\alpha$, dla obserwacji czasu do remisji choroby u dziesięciu pacjentów leczonych lekiem B")
+```
+
+Dla poziomu istotności $\alpha$=0.05 realizacją przedziału ufnosći dla pacjentów leczonych lekiem A przyjując, że 1, że obserwacje czasu do remisji choroby były prowadzone do momentu, w którym u dziesięciu pacjentów zostanie ona zaobserwowana jest przedział $[`r round(c[1],2)`,`r round(d[1],2)`]$. Dla $\alpha$=0.01 realizacją przedziału ufności jest przedział: [`r round(c[2],2)`,`r round(d[2],2)`].
+
+W tym zadaniu liczyliśmy realizacje przedziału ufności dla danych cencurowanych II-go typu. Zauważamy, że w tym przypadku realizacje przedziałów ufności dla poszczególnych $\alpha$ róznią się w zależności od grupy A i B, przeciwnie do tego co otrzymaliśmy w w zadaniu 1 w podpunkcie b) gdzie dla poszczególnych $/alpha$ realizacje przedziału ufności grupy A odpowiadały realizacją z grupy B.
+
+## Zadanie 3 
+
+Parametry:
+
+* $\theta$=1
+* $n$=10 oraz $n$=30
+* $t_0$=0.5 oraz $t_0$=1 oraz $t_0$=2
+* przyjęta liczba symulacji wynosi 1000
+
+```{r, echo=FALSE}
+theta<-1
+n<-c(10,30)
+t0<-c(0.5,1,2)
+symulacje<-1000
+```
+
+
+```{r}
+zmienna<-0
+estymatory<- function(theta,n,t0){
+  X <- rexp(n, rate = theta)    
+  R <- sum(X <= t0)
+  T1 <- sum(X[X <= t0]) + t0* (n - R)
+  theta_d <- R / T1
+  zmienna<-0
+  if(R < n) {
+    theta_f <- -log(1 - R / n) / t0
+  } else {
+    zmienna<-1
+    theta_f<- 1/((1/n)*sum(X[1:n]))
+    
+  }
+  return(c(theta_d, theta_f, zmienna))
+}
+
+
+wyniki <-data.frame()
+for (n_i in n) {
+  for (t0_j in t0) {
+    estymator <- replicate(symulacje, estymatory(theta, n_i, t0_j))
+    theta_d <- estymator[1, ]
+    theta_f <- estymator[2, ]
+    zmienne <- sum(estymator[3, ])
+  
+
+    bias1 <- mean(theta_d - theta)
+    bias2 <- mean(theta_f - theta)
+    
+    mse1 <- mean((theta_d - theta)^2)
+    mse2 <- mean((theta_f - theta)^2)
+  
+    wyniki <- rbind(
+      wyniki,
+      data.frame(
+        n = n_i,
+        t0 = t0_j,
+        Bias_d = round(bias1,3),
+        Bias_f = round(bias2,3),
+        MSE_d = round(mse1,3),
+        MSE_f = round(mse2,3),
+        p = zmienne
+      )
+    )
+  }
+}
+```
+
+Liczba $\tilde{\theta}$ liczonych za pomocą wzoru na średnią próbkową wynosi `r sum(wyniki$p)`. Zastosowanie tego wzoru wynika z tego, że gdy R=n otrzymujemy log(0) (R zwraca -Inf).
+
+```{r, echo=FALSE}
+colnames(wyniki) <- c("n", 
+  "t0",
+  "$Bias(\\hat{\\theta},\\theta)$",
+  "$Bias(\\tilde{\\theta}, \\theta)$",
+  "$MSE(\\hat{\\theta}, \\theta)$",
+  "$MSE(\\tilde{\\theta}, \\theta)$","p")
+kable(wyniki[ c(1, 2, 3,4,5,6)])
+```
+
+Dla $n$=30 $Bias(\hat{\theta},\theta)$,$Bias(\tilde{\theta}, \theta)$, $MSE(\hat{\theta}, \theta)$, $MSE(\tilde{\theta}, \theta)$ są znacznie mniejsze niż dla próby rozmiaru $n$=10. Zatem można wynioskować, że im większa jest liczba obserwacji tym estymator jest dokładniejszy. 
+
+Dla $t_0$=0.5 i $t_0$=1 $Bias(\hat{\theta},\theta)$ i $MSE(\hat{\theta}, \theta)$  niezależnie od wartości $n$ ma mniejsze wartości odpowiednio niż $Bias(\tilde{\theta}$ oraz $MSE(\tilde{\theta}, \theta)$. Jendak dla $t_0$=2 przy $n$=10 dokładniejszy jest estymator $\tilde{\theta}$. Dla małych wartości $t_0$ mamy dużo cenzurowanych obserwacji i w tym wypadku lepiej sprawdza się estymator $\hat{\theta}$.
+
+# Lista 4
+
+## Zadanie 1
+
+Umieszczyony poniżej kod zwraca p-value dla wykładniczych danych cenzurowanych I typu. Funkcja przyjmuje jako argumenty $\theta_0,\,r,\,t_0,\,s,\,n$ oraz $type$, gdzie:
+
+- $r$ to liczba danych kompletnych
+
+- $t_0$ to czas, po którym zakończyliśmy eksperyment
+
+- $s$ to statystyka $\sum_{i=1}^{r}x_i$, gdzie $x_i$ to dane kompletne
+
+- $n$ to liczba danych 
+
+- $type$ podajemy w zależności od typu hipotezy:
+
+  * $"two.sided"$ - $\theta=\theta_0$ przeciwko $\theta\neq\theta_0$
+  * $"left"$ - $\theta\le\theta_0$ przeciwko $\theta>\theta_0$
+  * $"right"$ - $\theta\ge\theta_0$ przeciwko $\theta<\theta_0$
+ 
+Test oparty jest na ilorazie wiarygodności: $$\lambda(\mathbf{x}) = \frac{sup_{\theta\in\Theta_0}L(\theta,\mathbf{x})}{sup_{\theta\in\Theta}L(\theta,\mathbf{x})}$$. 
+
+Korzystamy z faktu, że $-2ln(\lambda(\mathbf{X}))$ ma rozkład $\chi^2(1)$. 
+
+W naszym przypadku $$L(\theta,\mathbf{x})=\frac{n!}{(n-r)!}\theta^re^{-\theta(s + t_0(n-r))}$$
+przyjmuje maxium dla 
+$$\theta = \frac{r}{s+t_0(n-r)}$$.
+
+```{r}
+pval = function(theta0, r ,t0 , s, n, type){
+  if(r == 0){
+    return(1)
+  }
+  s = s + t0*(n-r)
+  lambda = (theta0*s/r)^r*exp(-theta0*s + r)
+  K = 1 - pchisq(-2*log(lambda),1)
+  if(type == "two.sided"){
+    return(K)
+  }
+  if(type == "left"){
+    if(theta0 > r/s){
+      return(1)
+    }
+    else{
+      return(K)
+    }
+  }
+  if(type == "right"){
+    if(theta0 < r/s){
+      return(1)
+    }
+    else{
+      return(K)
+    }
+  }
+
+}
+```
+
+## Zadanie 2
+
+Poniższa funkcja szacuje za pomocą symulacji moc i rozmiar testu $\theta=\theta_0$ przeciwko $\theta\neq\theta_0$ dla wykładniczych danych cenzurowanych I typu. Przyjmuje jako argumenty $\theta,\,\theta_0,\,t_0,\,n,\,nsim,\,\alpha$, przy konwencji z zadania 1, gdzie:
+
+- $nsim$ to liczba symulacji
+- $\alpha$ to poziom istotności testu
+- $theta$ jest parametrem rozkładu danych, które generujemy na porzeby testu
+
+```{r}
+sim = function(theta,theta0, t0,  n, nsim, alpha){
+  failed = 0
+  for(i in 1:nsim){
+    data = sort(rexp(n, theta))
+    r = sum(data <= t0)
+    s = sum(data[1:r])
+    p = pval(theta0, r ,t0 , s, n, type = "two.sided")
+    if(p < alpha){
+      failed = failed + 1
+    }
+  }
+  return(failed/nsim)
+  
+}
+
+
+```
+
+W tabelach \ref{tab:sim1} oraz \ref{tab:sim2} znajdziemy wyniki funkcji **sim** dla różnych $\theta$ przy $\theta_0=0.5,\,t_0=0.7,\,nsim=1000,\,\alpha=0.05$.
+Wartość $\theta=\theta_0=0.5$ jest oszacowaniem rozmiaru, natomiast pozostałe 10 wartości $\theta\neq\theta_0=0.5$ mocami testu.
+Zgodnie z przewidywaniami dla $\theta=\theta_0$ otrzymujemy rozmiar bliski poziomowi istotności $\alpha=0.05$.
+
+```{r echo = FALSE}
+thetas = seq(0.25 ,2.75, 0.25)
+pvals = sapply(thetas, FUN = function(x) sim(x,0.5, 0.7,20,1000,0.05))
+
+df = data.frame(rbind(thetas,pvals))
+row.names(df) =  row.names = c("$\\theta$","$\\beta_{\\theta}$")
+
+kable(df, caption = "\\label{tab:sim1} Symulacyjnie wyznaczona istotność testu dla n = 20",col.names = NULL)
+
+pvals2 = sapply(thetas, FUN = function(x) sim(x,0.5, 0.7,50,1000,0.05))
+
+df2 = data.frame(rbind(thetas,pvals2))
+row.names(df2) =  row.names = c("$\\theta$","$\\beta_{\\theta}$")
+
+kable(df2, caption = "\\label{tab:sim2} Symulacyjnie wyznaczona istotność testu dla n = 50",col.names = NULL)
+
+
+
+A = c(0.03345514, 0.08656403, 0.08799947, 0.24385821, 0.27755032,
+        0.40787247, 0.58825664, 0.64125620, 0.90679161, 0.94222208)
+
+B = c( 0.03788958, 0.12207257, 0.20319983, 0.24474299, 0.30492413,
+         0.34224462, 0.42950144, 0.44484582, 0.63805066, 0.69119721)
+
+s1 = sum(A[1:10])
+s2 = sum(B[1:10])
+
+```
+
+## Zadanie 3
+
+Przeprowadzamy, na podstawie danych z zadania 3 z listy 2, test hipotezy $\theta=1$ przeciwko $\theta\neq1$ na poziomie istotności $\alpha=0.05$. W naszym przypadku:
+
+- $t_0=1$
+- $n=20$
+- $r=10$
+- $s_A= `r round(s1,3)`$
+- $s_B= `r round(s2,3)`$
+
+W Tabeli \ref{tab:test} widoczne są p-wartości dla poszczególnych zbiorów danych oraz rozstrzygnięcie testu. W przypadku obu zbiorów ich charakterystyka nie pozwala na odrzucenie hipotezy $\theta=1$.
+
+```{r, echo = FALSE}
+
+
+
+df = data.frame("A" = c(round(pval(1,10,1,s1,20,"two.sided"),2),
+                             "nieodrzucona"),
+                "B" = c(round(pval(1,10,1,s2,20,"two.sided"),2),
+                        "nieodrzucona"))
+
+rownames(df) = c("p-value", "rozstrzygnięcie")
+
+kable(df, caption = "\\label{tab:test} Testy na zbiorach A i B")
+
+```
+
+**KOCHAM PUCIA ** jakis wniosek?
+
+**KOCHAM PUCIA ** jakis wniosek?
+

@@ -1,0 +1,463 @@
+---
+title: "**Sprawozdanie 2**"
+author: "**Marta Hałas i Igor Misterowicz**"
+date: "**2025-11-08**"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    number_sections: true
+    toc: true
+    toc_depth: 3
+  word_document:  
+    toc: true
+    number_sections: true
+  html_document:
+    toc: true
+    df_print: paged
+    number_sections: true
+lang: pl
+header-includes:
+  - \usepackage{caption}
+  - \captionsetup[table]{name=Tabela}
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(fig.pos = "H", out.extra = "", fig.align = "center")
+
+
+set.seed(123)
+library(coin)
+library(knitr)
+library(kableExtra)
+library(ggplot2)
+library(cowplot)
+library(latex2exp)
+library(dplyr)
+library(tidyr)
+library(survival)
+```
+
+# Lista 6 
+
+```{r,echo=FALSE}
+km = function(t, delta){
+  n = length(t)
+  times = sort(unique(t))
+  r = sapply(times, FUN = function(var) sum(t >= var))
+  d = sapply(times, FUN = function(var) sum(t == var & delta == 1)) 
+  conditionals = 1 - d/r
+  S = function(x){
+    S_x = prod(conditionals[times <= x])
+    return(S_x)
+  }
+  return(S)
+}
+
+
+ km_bhk_tail = function(t, delta){
+  n = length(t)
+  S = km(t, delta)
+  t_plus = t[n]
+  S_tail = function(x){
+  S_x = exp(log(S(t_plus))/t_plus*x)
+  return(S_x)
+  }
+  return(S_tail)
+ }
+
+ km_extended =function(t,delta){
+  n =length(t)
+  t_plus= t[n]
+  base =km(t,delta)
+  tail =km_bhk_tail(t,delta)
+  S =function(x){
+  if(x<= t_plus) return(base(x))
+  if(x> t_plus) return(tail(x))
+  }
+  return(S)
+}
+```
+
+
+```{r,echo=FALSE}
+fh = function(t, delta){
+  n = length(t)
+  times = sort(unique(t))
+  r = sapply(times, FUN = function(var) sum(t >= var))
+  d = sapply(times, FUN = function(var) sum(t == var & delta == 1))  
+  S = function(x){
+    S_x = exp(-sum((d/r)[times <= x]))
+    return(S_x)
+  }
+  return(S)
+}
+
+fh_bhk_tail = function(t, delta){
+  n = length(t)
+  S = fh(t, delta)
+  t_plus = max(t)
+  S_tail = function(x){
+    S_x = exp(log(S(t_plus))/t_plus*x)
+    return(S_x)
+  }
+  return(S_tail)
+}
+
+fh_extended = function(t, delta){
+  n = length(t)
+  t_plus = max(t)
+  base = fh(t, delta)
+  tail = fh_bhk_tail(t,delta)  
+  S = function(x){
+    if(x <= t_plus) return(base(x))
+    if(x > t_plus) return(tail(x))
+  }
+  return(S)
+}
+
+```
+
+
+## Zadanie 1 
+
+Poniżej zanjduje się implementacja programu do estymacji średniego czasu życia w oparciu o estymator Kaplana-Meiera oraz Fleminga-Harringtona. W obu przypadkach stosujemy opcję szacowania ogona zaproponowaną przez Browna, Hollandera i Kowara. Dzięki temu ogon estymatora zastępujemy ogonem wykładniczym, który kieruje się ku zeru. Zatem oba estymatory będą określone na przedziale ($0, \infty$), czyli wartość średnią życia $\mu=\int_0^{\infty}S(t)dt$ możemy wyznaczyć używając funkcji $integrate()$.
+
+### a) Estymacja średniego czasu życia w oparciu o estymator Kaplana-Meiera z opcją szacowania ogona wykładniczego
+
+```{r}
+oszacowanie_km <- function(t, delta) {
+  s <-Vectorize(km_extended(t, delta))
+  val <- integrate(s, 0, Inf)$value
+  return(val)
+}
+```
+
+### b) Estymacja średniego czasu życia w oparciu o estymator Fleminga-Harringtona z opcją szacowania ogona wykładniczego
+
+```{r}
+oszacowanie_fh<-function(t,delta) {
+  s <-Vectorize(fh_extended(t, delta))
+  val <- integrate(s, 0, Inf)$value
+  return(val)
+}
+```
+
+## Zadanie 2 
+
+```{r,echo=FALSE}
+A = c(0.03345514, 0.08656403, 0.08799947, 0.24385821, 0.27755032,
+ 0.40787247, 0.58825664, 0.64125620, 0.90679161, 0.94222208)
+ B = c( 0.03788958, 0.12207257, 0.20319983, 0.24474299, 0.30492413,
+ 0.34224462, 0.42950144, 0.44484582, 0.63805066, 0.69119721)
+```
+
+
+Na podstawie danych z zadania 3 z listy 2 oszacujemy średnie czasy do remisji choroby pacjentów leczonych lekiem A oraz lekiem B.
+
+
+```{r,echo=FALSE}
+a<-oszacowanie_km(c(A,rep(1,10)),c(rep(1,10),rep(0,10)))
+b<-oszacowanie_km(c(B,rep(1,10)),c(rep(1,10),rep(0,10)))
+c<-oszacowanie_fh(c(A,rep(1,10)),c(rep(1,10),rep(0,10)))
+d<-oszacowanie_fh(c(B,rep(1,10)),c(rep(1,10),rep(0,10)))
+tabela <- data.frame(
+  "Kaplan-Meier" = c(round(a,3), round(b,3)),
+  "Fleming-Harrington" = c(round(c,3), round(d,3)),
+  row.names = c("Lek A", "Lek B")
+)
+
+colnames(tabela) <- c("Estymator Kaplana-Meiera", "Estymator Fleminga-Harringtona")
+kable(tabela, caption = "Średni czas życia dla Leków A i B \\label{tab:dane1}")
+```
+
+Z powyższej tabeli \ref{tab:dane1} odczytujemy, że największy średni czas do remisji choroby otrzymaliśmy dla leku A i estymatora Fleminga-Harringtona. Natomiast najmniejsza wartość średniego czasu do remisji choroby wystąpiła dla leku B po zastosowaniu estymatora Kaplana-Meiera. Pozostałe wartości średnich czasów tzn. dla leku A i estymatora Kaplana-Meiera oraz leku B i esytmatora Fleminga-Harringtona dały zbliżone do siebie wyniki. Różnica między ich średnimi czasami do remisji choroby wynosi `r round((d-a),3)`.
+
+
+# Lista 8
+
+## Zadanie 1 
+
+W tym zadaniu skorzystamy z danych opisanych w zadaniu 2 na liście 7. Będziemy weryfikować hipotezę $H_0$ na poziomie istotności $\alpha=0.05$ o jednakowym rozkładzie czasu do progresji choroby w dwóch badanych grupach pacjentek:
+
+* o niskim stopniu zaawansowania choroby 
+* o wysokim stopniu zaawansowania choroby 
+
+korzystając z następujących testów: log-rank, Gehana-Berslowa, Tarone'a-Warego oraz Peto-Peto.
+
+```{r,echo=FALSE}
+data1 = c(28, 89, 175, 195, 309, 377, 393, 421, 447,
+462, 709, 744, 770, 1106, 1206)
+
+delta1 = c(1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0) 
+
+g1<-c(rep("niski stopień zaawansowania choroby",length(data1)))
+
+data2 = c(34, 88, 137, 199, 280, 291, 299, 300, 309,
+351, 358, 369, 369, 370, 375, 382, 392, 429, 451, 1119)
+
+delta2 = c(1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0)
+
+g2<-c(rep("wysoki stopień zaawansowania choroby",length(data2)))
+
+czas   <- c(data1, data2)
+status <- c(delta1, delta2)
+grupa  <- factor(c(g1, g2))
+
+df <- data.frame(czas = czas,
+                 status = status,
+                 groupa = grupa)
+
+a<-logrank_test(Surv(czas, status) ~ groupa, data = df)
+
+
+b<-logrank_test(Surv(czas, status) ~ groupa, data = df, type = "Gehan-Breslow")
+
+c<-logrank_test(Surv(czas, status) ~ groupa, data = df, type = "Tarone-Ware")
+
+d<-logrank_test(Surv(czas, status) ~ groupa, data = df, type = "Peto-Peto")
+
+ramka<-data.frame(
+  p=c(round(pvalue(a),4),round(pvalue(b),4),round(pvalue(c),4),round(pvalue(d),4)),
+  test=c("Log-rank","Gehan-Breslow","Tarone-Ware","Peto-Peto")
+)
+
+kable(ramka, col.names = c("P-value","Rodzaj testu"), caption = "Wartości poziomów krytycznych w zależności od zastosowanego testu \\label{tab:dane2}")
+```
+
+Analizując powyższe wartości P-value z tabeli \ref{tab:dane2} zauważamy, że jedynie dla testu log-rank istnieją podstawy do odrzucenia hipotezy $H_0$, P-value=`r round(pvalue(a),4)` $<0.05=\alpha$. Pozostałe testy nie mają podstaw do odrzucenia hipotezy $H_0$, są statystycznie nieistotne. 
+
+Test log-rank zgodnie z tym co zostało opisane na wykładzie ma optymalną moc do wykrywania alternatwy takich, że funkcje hazardów w k podpopulacjach są proporcjonalne. Prościej mówiąc log-rank przypisuje każdemu zdarzeniu tą samą wagę $W(t_i)=1$. 
+
+Pozostałe testy przypisują wagi zdarzeniom następująco:
+
+- Gehan-Breslow $W(t_i)=r_i$, gdzie $r_i$ to $r_i = \sum_{j=1}^{k} r_{ij}$ oraz 
+$r_{ij} = \text{liczba jednostek w stanie ryzyka w czasie }$ $t_i \text{w}  j\text{-tej grupie}$
+- Tarone-Ware $W(t_i)=\sqrt{r_i}$
+- Peto-Peto $W(t_i) = \tilde{S}(t_i) := \prod_{t_j \le t_i} \left( 1 - \frac{d_j}{r_j + 1} \right)$
+
+Test Gehana-Berslowa przypisał dużą wagę obserwacjom wczesnym (duża wartości $r_i$), które w obu grupach pacjentek tych o niskim, jak i wysokim stopniu zaawasnowania choroby mają podobne czasy progresji.
+
+Podobnie zadziałał test Peto-Peto. On również nadał istotne znaczenie pierwszym obserwacjom (duża wartości $r_i$, maleje z kolejnymi obserwacjami). 
+
+Wartość P-value testu Tarone'a-Warego minimalnie, na 2 miejscu po przecinku, przekroczyła wartość poziomu istotności $\alpha=0.05$. Wartość P-value nie jest jednak na tyle mała by uznać ten test za istotny statytycznie. Możemy przypuszczać, że ten test nie nadał dużych wag obserwacjom początkowym.
+
+Jako, że różnice w danych z Mayo Clinic pojawiają się dopiero przy 5-6 obserwacji testy nadają większą wagę/istotność obserwacjom początkowym i nie "dostrzegają" znaczących różnic między poźniejszymi zdarzeniami. Jedynie test log-rank, który nadaję każdemu zdarzeniu wagę równą 1 potrafi wykryć różnice dla poźniejszych obserwacji. 
+
+## Zadanie 2 
+
+Poniżej zanjdują się wykres estymatorów Kaplana-Meiera funkcji przeżycia dla czasu do progresji choroby w dwóch badanych grupach oraz wykres unormowanych funkcji wagowych w statystykach testowych rożważanych powyżej.
+
+```{r,echo=FALSE,fig.width=5, fig.height=3,fig.cap = "Funkcje przeżycia wyrażone estymatorem Kaplana-Meiera \\label{fig:1}"}
+SA = km(data1,delta1)
+SB = km(data2,delta2)
+
+x_ax = seq(from = 0, to  = max(c(data1,data2)), by = 10)
+
+y_axA = sapply(x_ax, SA)
+y_axB = sapply(x_ax, SB)
+
+ggplot(NULL, aes(x = x_ax)) +
+  geom_line(aes(y = y_axA, color = "A"), linewidth = 1) +
+  geom_line(aes(y = y_axB, color = "B"), linewidth = 1) +
+  scale_color_manual(values = c("A" = "deeppink",
+                                "B" = "blue"),labels=c("Niski stopień \nzaawansowania choroby","Wysoki stopień \nzaawansowania choroby")) +
+  labs(color = "Zbiór danych") + 
+  xlab("t") + 
+  ylab("S(t)") + 
+  ggtitle("Funkcje przeżycia wyrażone estymatorem \nKaplana-Meiera")
+```
+
+Na rysunku \ref{fig:1} widzimy, że dla grupy o wysokim stopniu zaawanosowania choroby dostrzegamy większą liczbę "schodków" na wykresie oraz większe spadki. Dla $t>250$ duży spadek wykresu w kolorze niebieskim oznacza wystąpienie bardzo wielu zdarzeń w krótkim okresie czasu, co zgadza się z danymi. 
+
+```{r,echo=FALSE,fig.width=5, fig.height=3,fig.cap = "Wykres unormowanych funkcji wagowych w statystykach testowych \\label{fig:2}"}
+td <- sort(unique(df$czas[df$status == 1]))
+
+ri<- sapply(td, function(m) sum(df$czas >= m))
+
+di<- sapply(td, function(m) sum(df$czas ==m & df$status ==1))
+
+S <-sapply(seq_along(td), function(i) prod(1 - (di[1:i] / (ri[1:i]+1))))
+
+log_rank <- rep(1, length(ri))
+G_Breslow<- ri
+Tarone <- sqrt(ri)
+Peto<- S
+
+log_rank<-log_rank / sum(log_rank)
+G_Breslow <- G_Breslow / sum(G_Breslow)
+Tarone <- Tarone / sum(Tarone)
+Peto<-Peto / sum(Peto)
+
+df <- data.frame(
+  td = td,
+  log_rank = log_rank,
+  G_Breslow = G_Breslow,
+  Tarone = Tarone,
+  Peto = Peto
+)
+
+df_wykres <- pivot_longer(
+  df,
+  cols= -td,
+  names_to = "Metoda",
+  values_to = "Waga"
+)
+
+ggplot(df_wykres, aes(x = td, y = Waga, color = Metoda)) +
+  geom_line(size = 0.7) +
+  labs(
+    x = "Czas",
+    y = "Wagi unormowane",
+    title = "Wykres unormowanych funkcji wagowych w \nstatystykach testowych"
+  ) +
+  scale_color_manual(values = c(
+    "log_rank" = "orchid3",
+    "G_Breslow" = "navy",
+    "Tarone" = "deeppink",
+    "Peto" = "green"
+  ),labels=c("Gehan-Breslow","Log-rank","Peto-Peto","Tarone-Ware"))
+```
+
+Na wykresie \ref{fig:2} przedstawione są unormowane funkcje wagowe w statystykach testowych rożważanych w zadaniu wcześniejszym. 
+
+Zauważamy, że test log-rank jest stały na całym okresie czasu, co oznacza, że równomiernie/proporcjonalnie przypisał wagi poszczególnym obserwacjom. P-value tego testu wskazuje, że jest on istotny statystycznie.
+
+Funkcje dla testu Gehana-Breslowa oraz Peto-Peto mają tendecje spadkową. Na początku testy przypisały duże wagi obserwacjom początkowym, a póżniej kiedy $r_i$ zaczęło maleć przypisywane wagi stawały się coraz mniejsze. 
+
+Dla testu Tarone'a-Warego wahania wartości wag są mniejsze niż dla Gehana-Breslowa oraz Peto-Peto. Potwierdzają to wartości P-value otrzymane w zadaniu 1, dla testu Tarone'a-Warego P-value jest najbardziej zbliżona do poziomu istotności w porówaniu z innymi testami poza testem log-rank.
+
+\newpage
+
+# Lista zadań dodatkowych
+
+## Zadanie 2
+
+Zmodyfikowany estymator Kaplana-Meiera dla dwóch sąsiadów.
+
+Stosuję estyrmator Kaplana-Meiera wyznaczony na liście 5.
+
+```{r}
+km = function(t, delta){
+  n = length(t)
+  times = sort(unique(t))
+  r = sapply(times, FUN = function(var) sum(t >= var))
+  d = sapply(times, FUN = function(var) sum(t == var & delta == 1)) 
+  conditionals = 1 - d/r
+  S = function(x){
+    S_x = prod(conditionals[times <= x])
+    return(S_x)
+  }
+  return(S)
+}
+```
+
+Poniżej znajduje się implementacja estymatora opisanego w artykule Rossa2002. Jako parametry skonstruowanej funkcji esytamora przyjmujemy:
+
+* t - wartość, dla której obliczamy S(t)
+
+* Ti - wektor obserwowanych czasów, $min(X,Y)$ gdzie $X$-prawdziwy czas życia i $Y$-czas cenzurowania
+
+* m - liczba sąsiadów
+
+* status - oznaczenie dla danych czy dana wartość jest cenzurowana status=0 czy nie status=1.
+
+Idea konstukcji:
+
+Na samym początku sortuje dane po Ti rosnąco. W przypadku, gdy Ti mają tą samą wartość pierwszą zostanie obserwacja o statusie=1.
+
+Następnie obliczam za pomocą wyznaczonej powyżej funkcji $km()$ estymator Kaplana-Meiera dla zadanych Ti i statusu. Wyznaczamy posortowane wartości indeksów pod nazwą $T_j, j$ w artykule. Są to w naszej funkcji indeksy_skoków, czyli kiedy status=1. Tworzymy wektor $T0$ wykorzystywany w późniejszym etapie (liczba elementów wektora to N+2). Następnie obliczamy wartości KM w każdym punkcie $T0$. Dostajemy wektor długości N+2: $KM(0),...,KM(max(T_i)$.
+
+Stosujemy teraz modyfikacje Ross2002 opisaną w artykule:
+
+$$
+KM_j' =
+\begin{cases}
+\dfrac{KM(T_{j-1}') + KM(T_j')}{2}, & j = 1, 2, \dots, N-1 \\
+\dfrac{KM(T_N')}{2}, & j = N \text{ i } \delta_N = 1 \\
+KM(T_N'), & j = N \text{ i } \delta_N = 0
+\end{cases}
+$$
+
+Następnie szukamy $m$-indeksu pierwszego punktu z wektora $T0$, który jest większy niż zadane t. Zgodnie z podanymi wzorami na stronie 8, obliczamy interpolacje:
+
+$Y = Y_1 + \frac{Y_2 - Y_1}{X_2 - X_1} (X - X_1)$
+gdzie:
+$X_1 = \log(T_0[m-1]$), $X_2 = \log(T_0[m])$  ,  
+$Y_1 = \log(-\log(KM_j[m-1]))$, $Y_2 = \log(-\log(KM_j[m]))$
+
+oraz $X = \log(t)$ 
+
+na samym końcu liczymy $S_2(t) = e^{-e^{Y}}$.
+
+```{r}
+S_zmodyfikowany <- function(t, Ti, status, m = 2) {
+  
+  ramka<-data.frame(Ti=Ti,status=status)
+  ramka<-ramka[order(ramka$Ti,-ramka$status),]
+  Ti<-ramka$Ti
+  status<-ramka$status
+  
+  kaplan<-km(Ti,status)
+  
+  indeksy_skoków<-sort(unique(Ti[status ==1]))
+
+  N<-length(indeksy_skoków)               
+  
+  T0<-c(0,indeksy_skoków,max(Ti))          
+  
+  wartości_kms<-sapply(T0, kaplan)              
+  Kmj<- numeric(N)     
+  
+  for (i in 1:(N-1)) {
+    Kmj[i] <- (wartości_kms[i]+wartości_kms[i+1])/2 }
+  
+  ostatnia_cenzura<- status[which.max(Ti)]
+  if (ostatnia_cenzura == 1) {
+    Kmj[N] <- wartości_kms[N+1] / 2
+  } else {
+    Kmj[N] <- wartości_kms[N+1]
+  }
+  
+  m<-which(T0 > t)[1]
+    
+  X1 <- log(T0[m-1])  
+  X2 <- log(T0[m])    
+  Y1 <- log(-log(Kmj[m-1]))
+  Y2 <- log(-log(Kmj[m]))
+    
+  X  <- log(t)
+  Y  <- Y1 +((Y2 - Y1)*(X - X1))/ (X2 - X1)
+  St2 <- exp(-exp(Y))
+  
+  return(St2)
+}
+```
+
+```{r}
+Ti <- c(6,6,6,6,7,9,10,10,11,13,16,17,19,20,22,23,25,32,32,34,35)
+status <- c(1,1,1,0,1,0,1,0,0,1,1,0,0,0,1,1,0,0,0,0,0)
+t<- 17
+
+siatka <- seq(0, max(Ti), length.out = 400)
+
+war <- sapply(siatka, S_zmodyfikowany, Ti = Ti, status = status)
+
+S17 <- S_zmodyfikowany(17, Ti, status)
+S17
+df <- data.frame(
+  czas = siatka,
+  S = war
+)
+ggplot(df, aes(x = czas, y = S)) +
+  geom_line(color = "deeppink", size = 1.2) +
+  geom_point(aes(x = t, y = S17), color = "blue", size = 3) +
+  labs(title = "Zmodyfikowany estymator Ross (2002)",
+       x = "Czas t",
+       y = "S(t)") +
+  theme_minimal() +
+  annotate("text", x = t, y = S17, label = paste0("S(", t, ")=", round(S17,3)),
+           vjust = -1.2, hjust = 0.5, color = "blue")
+```
+
+Porównując wynik z tym danym w artykule nie zgadza się on. Prześledzliśmy implementacje jednak nie zauważyliśmy błędu, jednak podejrzewamy, że wynika on ze złego indeksowania.
